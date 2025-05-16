@@ -61,4 +61,16 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+
+// GET series by category
+router.get('/category/:category', async (req, res) => {
+  try {
+    const category = req.params.category;
+    const series = await Series.find({ category });
+    res.status(200).json(series);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch series by category' });
+  }
+});
+
 module.exports = router;

@@ -5,23 +5,44 @@ const Movie = require('../models/Movie');
 // POST a movie
 router.post('/', async (req, res) => {
   try {
-    const movie = new Movie(req.body);
-    await movie.save();
-    res.status(201).json({ movie: movie });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    const {
+      title, overview, category, region, type,
+      posterPath, videoUrl, releaseDate, voteAverage
+    } = req.body;
+
+    const newMovie = new Movie({
+      title,
+      overview,
+      category,
+      region, // add region
+      type,
+      posterPath,
+      videoUrl,
+      releaseDate,
+      voteAverage,
+    });
+
+    await newMovie.save();
+    res.status(201).json(newMovie);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
-// GET all movies or by category
+// GET all movies or by category and region
 router.get('/', async (req, res) => {
-  const { category } = req.query;
   try {
-    const filter = category ? { category } : {};
+    const { type, category, region } = req.query;
+    const filter = {};
+
+    if (type) filter.type = type;
+    if (category && category !== 'All') filter.category = category;
+    if (region && region !== 'All') filter.region = region;
+
     const movies = await Movie.find(filter);
     res.json(movies);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 

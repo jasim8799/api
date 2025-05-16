@@ -45,4 +45,16 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+router.get('/category/:category', async (req, res) => {
+  const category = req.params.category;
+
+  try {
+    const movies = await Movie.find({ category });
+    res.json(movies);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

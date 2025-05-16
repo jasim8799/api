@@ -23,9 +23,9 @@ router.post('/', async (req, res) => {
     });
 
     await newMovie.save();
-    res.status(201).json(newMovie);
+    res.status(201).json({ message: 'Movie uploaded successfully', movie: newMovie });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: 'Failed to upload movie' });
   }
 });
 

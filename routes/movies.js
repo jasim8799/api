@@ -1,8 +1,38 @@
 const express = require('express');
 const router = express.Router();
 const Movie = require('../models/Movie');
-  
-// POST: Upload movie using poster URL
+
+// GET: Fetch all movies
+router.get('/', async (req, res) => {
+  try {
+    const movies = await Movie.find().sort({ releaseDate: -1 });
+    res.json(movies);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch movies' });
+  }
+});
+
+// ✅ GET: Fetch only series
+router.get('/series', async (req, res) => {
+  try {
+    const series = await Movie.find({ type: 'series' }).sort({ releaseDate: -1 });
+    res.json(series);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch series' });
+  }
+});
+
+// ✅ GET: Fetch only movies (not series)
+router.get('/movies-only', async (req, res) => {
+  try {
+    const movies = await Movie.find({ type: 'movie' }).sort({ releaseDate: -1 });
+    res.json(movies);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch movies only' });
+  }
+});
+
+// POST: Upload movie or series
 router.post('/', async (req, res) => {
   try {
     const { title, overview, releaseDate, voteAverage, videoUrl, category, type, posterPath } = req.body;

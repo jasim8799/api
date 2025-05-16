@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const movieSchema = new mongoose.Schema({
+const seriesSchema = new mongoose.Schema({
   title: { type: String, required: true },
   overview: { type: String, required: true },
   posterPath: { type: String, required: true },
@@ -8,8 +8,7 @@ const movieSchema = new mongoose.Schema({
   voteAverage: { type: Number, required: true },
   videoUrl: { type: String, required: true },
   category: { type: String, required: true }, // Action, Comedy, etc.
-  type: { type: String, default: 'movie' }     // always "movie"
+  type: { type: String, default: 'series' }   // always "series"
 });
 
-module.exports = mongoose.model('Movie', movieSchema);
-
+module.exports = mongoose.model('Series', seriesSchema);

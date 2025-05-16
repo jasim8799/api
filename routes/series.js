@@ -1,45 +1,45 @@
 const express = require('express');
 const router = express.Router();
-const Movie = require('../models/Movie');
+const Series = require('../models/Series');
 
-// POST a movie
+// POST a series
 router.post('/', async (req, res) => {
   try {
-    const movie = new Movie(req.body);
-    await movie.save();
-    res.status(201).json(movie);
+    const series = new Series(req.body);
+    await series.save();
+    res.status(201).json(series);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// GET all movies or by category
+// GET all series or by category
 router.get('/', async (req, res) => {
   const { category } = req.query;
   try {
     const filter = category ? { category } : {};
-    const movies = await Movie.find(filter);
-    res.json(movies);
+    const series = await Series.find(filter);
+    res.json(series);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// PUT update movie
+// PUT update series
 router.put('/:id', async (req, res) => {
   try {
-    const updated = await Movie.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updated = await Series.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// DELETE a movie
+// DELETE a series
 router.delete('/:id', async (req, res) => {
   try {
-    await Movie.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Movie deleted' });
+    await Series.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Series deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

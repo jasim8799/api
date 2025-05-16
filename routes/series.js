@@ -36,7 +36,9 @@ router.get('/', async (req, res) => {
   try {
     const filter = {};
     if (category && category !== 'All') filter.category = category;
-    if (region && region !== 'All') filter.region = region;
+if (region && region !== 'All') {
+  filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
+}
     const series = await Series.find(filter);
     res.json(series);
   } catch (err) {
@@ -68,7 +70,14 @@ router.delete('/:id', async (req, res) => {
 router.get('/category/:category', async (req, res) => {
   try {
     const category = req.params.category;
-    const series = await Series.find({ category });
+const region = req.query.region;
+const query = { category };
+
+if (region && region !== 'All') {
+  query.region = { $regex: new RegExp(`^${region}$`, 'i') };
+}
+
+const series = await Series.find(query);
     res.status(200).json(series);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch series by category' });

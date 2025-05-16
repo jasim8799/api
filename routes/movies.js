@@ -29,7 +29,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET all movies or by category and region
+ // GET all movies or by category and region
 router.get('/', async (req, res) => {
   try {
     const { type, category, region } = req.query;
@@ -37,7 +37,9 @@ router.get('/', async (req, res) => {
 
     if (type) filter.type = type;
     if (category && category !== 'All') filter.category = category;
-    if (region && region !== 'All') filter.region = region;
+    if (region && region !== 'All') {
+      filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
+    }
 
     const movies = await Movie.find(filter);
     res.json(movies);
@@ -68,9 +70,16 @@ router.delete('/:id', async (req, res) => {
 
 router.get('/category/:category', async (req, res) => {
   const category = req.params.category;
+  const region = req.query.region;
 
   try {
-    const movies = await Movie.find({ category });
+    const query = { category };
+
+    if (region && region !== 'All') {
+      query.region = { $regex: new RegExp(`^${region}$`, 'i') };
+    }
+
+    const movies = await Movie.find(query);
     res.json(movies);
   } catch (err) {
     console.error(err);

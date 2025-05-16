@@ -5,7 +5,7 @@ const Series = require('../models/Series');
 // POST a series
 router.post('/', async (req, res) => {
   try {
-    const { title, overview, releaseDate, voteAverage, videoUrl, category, type, posterPath } = req.body;
+    const { title, overview, releaseDate, voteAverage, videoUrl, category, type, posterPath, region } = req.body;
 
     if (!posterPath) {
       return res.status(400).json({ error: 'posterPath is required.' });
@@ -19,7 +19,8 @@ router.post('/', async (req, res) => {
       videoUrl,
       category,
       type,
-      posterPath
+      posterPath,
+      region
     });
 
     await newSeries.save();
@@ -29,11 +30,13 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET all series or by category
+// GET all series or by category and region
 router.get('/', async (req, res) => {
-  const { category } = req.query;
+  const { category, region } = req.query;
   try {
-    const filter = category ? { category } : {};
+    const filter = {};
+    if (category && category !== 'All') filter.category = category;
+    if (region && region !== 'All') filter.region = region;
     const series = await Series.find(filter);
     res.json(series);
   } catch (err) {
@@ -60,7 +63,6 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 // GET series by category
 router.get('/category/:category', async (req, res) => {

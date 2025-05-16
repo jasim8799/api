@@ -8,7 +8,11 @@ const movieSchema = new mongoose.Schema({
   voteAverage: { type: Number, required: true },
   videoUrl: { type: String, required: true },
   category: { type: String, required: true }, // Action, Comedy, etc.
-  region: { type: String }, // NEW FIELD
+  region: {
+    type: String,
+    enum: ['Hollywood', 'Bollywood', 'All'],
+    required: true
+  },
   type: { type: String, default: 'movie' }     // always "movie"
 });
 

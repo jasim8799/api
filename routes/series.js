@@ -5,11 +5,27 @@ const Series = require('../models/Series');
 // POST a series
 router.post('/', async (req, res) => {
   try {
-    const series = new Series(req.body);
-    await series.save();
-    res.status(201).json(series);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    const { title, overview, releaseDate, voteAverage, videoUrl, category, type, posterPath } = req.body;
+
+    if (!posterPath) {
+      return res.status(400).json({ error: 'posterPath is required.' });
+    }
+
+    const newSeries = new Series({
+      title,
+      overview,
+      releaseDate,
+      voteAverage: parseFloat(voteAverage),
+      videoUrl,
+      category,
+      type,
+      posterPath
+    });
+
+    await newSeries.save();
+    res.status(201).json({ message: 'Series uploaded successfully', series: newSeries });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 

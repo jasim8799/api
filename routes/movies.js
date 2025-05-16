@@ -1,27 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const Movie = require('../models/Movie');
-const multer = require('multer');
-const path = require('path');
-
-// Multer setup for file upload
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/posters/');
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    cb(null, Date.now() + ext); // Unique filename
-  }
-});
-const upload = multer({ storage });
-
-// POST: Upload movie with poster
-router.post('/', upload.single('poster'), async (req, res) => {
+  
+// POST: Upload movie using poster URL
+router.post('/', async (req, res) => {
   try {
-    const { title, overview, releaseDate, voteAverage, videoUrl, category, type } = req.body;
+    const { title, overview, releaseDate, voteAverage, videoUrl, category, type, posterPath } = req.body;
 
-    const posterPath = req.file ? `/uploads/posters/${req.file.filename}` : '';
+    if (!posterPath) {
+      return res.status(400).json({ error: 'posterPath is required.' });
+    }
 
     const newMovie = new Movie({
       title,

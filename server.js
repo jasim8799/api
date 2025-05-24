@@ -21,6 +21,7 @@ mongoose.connect(process.env.MONGO_URI, {
 // Routes
 app.use('/api/movies', require('./routes/movies'));
 app.use('/api/series', require('./routes/series'));
+app.use('/api/episodes', require('./routes/episodes'));
 
 // Start Server
 const PORT = process.env.PORT || 3000;

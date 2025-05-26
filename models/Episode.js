@@ -5,7 +5,13 @@ const episodeSchema = new mongoose.Schema({
   episodeNumber: { type: Number, required: true },
   title: { type: String, required: true },
   overview: { type: String },
-  videoUrl: { type: String, required: true },
+  videoSources: [
+    {
+      quality: { type: String, required: true },  // e.g., "720p"
+      language: { type: String, required: true }, // e.g., "Hindi"
+      url: { type: String, required: true }
+    }
+  ],
   releaseDate: { type: String },
 });
 

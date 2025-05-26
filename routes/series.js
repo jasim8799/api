@@ -5,7 +5,7 @@ const Series = require('../models/Series');
 // POST a series
 router.post('/', async (req, res) => {
   try {
-    const { title, overview, releaseDate, voteAverage, videoUrl, category, type, posterPath, region } = req.body;
+    const { title, overview, releaseDate, voteAverage, videoSources, category, type, posterPath, region } = req.body;
 
     if (!posterPath) {
       return res.status(400).json({ error: 'posterPath is required.' });
@@ -16,7 +16,7 @@ router.post('/', async (req, res) => {
       overview,
       releaseDate,
       voteAverage: parseFloat(voteAverage),
-      videoUrl,
+      videoSources,
       category,
       type,
       posterPath,

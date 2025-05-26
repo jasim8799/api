@@ -5,13 +5,13 @@ const Episode = require('../models/Episode');
 // Add episode
 router.post('/', async (req, res) => {
   try {
-    const { seriesId, episodeNumber, title, overview, videoUrl, releaseDate } = req.body;
+    const { seriesId, episodeNumber, title, overview, videoSources, releaseDate } = req.body;
 
-    if (!seriesId || !episodeNumber || !title || !videoUrl) {
+    if (!seriesId || !episodeNumber || !title || !videoSources) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const newEpisode = new Episode({ seriesId, episodeNumber, title, overview, videoUrl, releaseDate });
+    const newEpisode = new Episode({ seriesId, episodeNumber, title, overview, videoSources, releaseDate });
     await newEpisode.save();
 
     res.status(201).json({ message: 'Episode added', episode: newEpisode });

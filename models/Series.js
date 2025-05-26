@@ -6,7 +6,13 @@ const seriesSchema = new mongoose.Schema({
   posterPath: { type: String, required: true },
   releaseDate: { type: String, required: true },
   voteAverage: { type: Number, required: true },
-  videoUrl: { type: String, required: true },
+  videoSources: [
+    {
+      quality: { type: String, required: true },  // e.g., "720p"
+      language: { type: String, required: true }, // e.g., "Hindi"
+      url: { type: String, required: true }
+    }
+  ],
   category: { type: String, required: true }, // Action, Comedy, etc.
   region: {
     type: String,

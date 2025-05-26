@@ -7,7 +7,7 @@ router.post('/', async (req, res) => {
   try {
     const {
       title, overview, category, region, type,
-      posterPath, videoUrl, releaseDate, voteAverage
+      posterPath, videoLinks, releaseDate, voteAverage
     } = req.body;
 
     const newMovie = new Movie({
@@ -17,7 +17,7 @@ router.post('/', async (req, res) => {
       region, // add region
       type,
       posterPath,
-      videoUrl,
+      videoLinks,
       releaseDate,
       voteAverage,
     });

@@ -97,16 +97,18 @@ router.put('/:id/add-source', async (req, res) => {
   }
 
   try {
-    const movie = await Movie.findById(id);
-    if (!movie) {
+    const updateResult = await Movie.findByIdAndUpdate(
+      id,
+      { $push: { videoLinks: videoSource } },
+      { new: true }
+    );
+
+    if (!updateResult) {
       console.log('Movie not found');
       return res.status(404).json({ message: 'Movie not found' });
     }
 
-    movie.videoLinks.push(videoSource);
-    await movie.save();
-
-    res.status(200).json({ message: 'Video source added', movie });
+    res.status(200).json({ message: 'Video source added', movie: updateResult });
   } catch (err) {
     console.error('Error adding video source:', err); // ✅ Detailed error
     res.status(500).json({ message: 'Server error', error: err.message });

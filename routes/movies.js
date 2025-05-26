@@ -89,6 +89,7 @@ router.get('/category/:category', async (req, res) => {
 
 router.put('/:id/add-source', async (req, res) => {
   const { id } = req.params;
+  console.log('Add source body:', req.body); // ✅ Log body for debugging
   const { videoSource } = req.body;
 
   if (!videoSource || !videoSource.url) {
@@ -97,13 +98,17 @@ router.put('/:id/add-source', async (req, res) => {
 
   try {
     const movie = await Movie.findById(id);
-    if (!movie) return res.status(404).json({ message: 'Movie not found' });
+    if (!movie) {
+      console.log('Movie not found');
+      return res.status(404).json({ message: 'Movie not found' });
+    }
 
     movie.videoLinks.push(videoSource);
     await movie.save();
 
     res.status(200).json({ message: 'Video source added', movie });
   } catch (err) {
+    console.error('Error adding video source:', err); // ✅ Detailed error
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

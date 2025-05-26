@@ -87,4 +87,25 @@ router.get('/category/:category', async (req, res) => {
   }
 });
 
+router.put('/:id/add-source', async (req, res) => {
+  const { id } = req.params;
+  const { videoSource } = req.body;
+
+  if (!videoSource || !videoSource.url) {
+    return res.status(400).json({ message: 'Video source is required' });
+  }
+
+  try {
+    const movie = await Movie.findById(id);
+    if (!movie) return res.status(404).json({ message: 'Movie not found' });
+
+    movie.videoLinks.push(videoSource);
+    await movie.save();
+
+    res.status(200).json({ message: 'Video source added', movie });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

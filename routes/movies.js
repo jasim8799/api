@@ -90,7 +90,7 @@ router.get(
       }
 
       if (region && region !== 'All') {
-        filter.region = region;
+        filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
       }
 
       let query = Movie.find(filter);

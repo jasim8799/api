@@ -85,7 +85,7 @@ router.get(
 
       if (category && category !== 'All') {
         if (category !== 'Trending' && category !== 'Recent') {
-          filter.category = category;
+          filter.category = { $regex: new RegExp(`^${category}$`, 'i') };
         }
       }
 

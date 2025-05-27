@@ -190,22 +190,7 @@ router.put('/:id/increment-views', [param('id').isMongoId()], validateRequest, a
 
 // GET movies by category with optional region filter
 router.get('/category/:category', [param('category').isString()], validateRequest, async (req, res) => {
-  const category = req.params.category;
-  const region = req.query.region;
-
-  try {
-    let query = { category };
-
-    if (region && region !== 'All') {
-      query.region = { $regex: new RegExp(`^${region}$`, 'i') };
-    }
-
-    const movies = await Movie.find(query);
-    res.json(movies);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
-  }
+  res.status(410).json({ message: 'This endpoint is deprecated. Please use GET /api/movies with category and region query parameters.' });
 });
 
 // Add a video source to existing movie videoLinks array

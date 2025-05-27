@@ -19,8 +19,9 @@ const movieSchema = new mongoose.Schema({
     enum: ['Hollywood', 'Bollywood', 'All'],
     required: true
   },
-  type: { type: String, default: 'movie' }     // always "movie"
+  type: { type: String, default: 'movie' },     // always "movie"
+  views: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Movie', movieSchema);
-

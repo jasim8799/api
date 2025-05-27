@@ -29,19 +29,37 @@ router.post('/', async (req, res) => {
   }
 });
 
- // GET all movies or by category and region
+// GET all movies or by category and region with special sorting for Trending and Recent
 router.get('/', async (req, res) => {
   try {
     const { type, category, region } = req.query;
-    const filter = {};
+    let filter = {};
 
     if (type) filter.type = type;
-    if (category && category !== 'All') filter.category = category;
-    if (region && region !== 'All') {
-      filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
+
+    if (category && category !== 'All') {
+      if (category === 'Trending') {
+        filter = { ...filter }; // Keep empty, sort later by views
+      } else if (category === 'Recent') {
+        filter = { ...filter }; // Keep empty, sort later by createdAt
+      } else {
+        filter.category = category;
+      }
     }
 
-    const movies = await Movie.find(filter);
+    if (region && region !== 'All') {
+      filter.region = region;
+    }
+
+    let moviesQuery = Movie.find(filter);
+
+    if (category === 'Trending') {
+      moviesQuery = moviesQuery.sort({ views: -1 });
+    } else if (category === 'Recent') {
+      moviesQuery = moviesQuery.sort({ createdAt: -1 });
+    }
+
+    const movies = await moviesQuery.exec();
     res.json(movies);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -65,6 +83,23 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Movie deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Increment views count when a movie is played
+router.put('/:id/increment-views', async (req, res) => {
+  try {
+    const updatedMovie = await Movie.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { views: 1 } },
+      { new: true }
+    );
+    if (!updatedMovie) {
+      return res.status(404).json({ message: 'Movie not found' });
+    }
+    res.json({ message: 'Views incremented', movie: updatedMovie });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

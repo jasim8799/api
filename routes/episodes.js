@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Episode = require('../models/Episode');
 
 // Add episode
@@ -26,7 +27,14 @@ router.get('/', async (req, res) => {
     const { seriesId } = req.query;
     if (!seriesId) return res.status(400).json({ error: 'seriesId query param required' });
 
-    const episodes = await Episode.find({ seriesId }).sort({ episodeNumber: 1 });
+    let objectId;
+    try {
+      objectId = mongoose.Types.ObjectId(seriesId);
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid seriesId format' });
+    }
+
+    const episodes = await Episode.find({ seriesId: objectId }).sort({ episodeNumber: 1 });
     res.json(episodes);
   } catch (error) {
     res.status(500).json({ error: error.message });

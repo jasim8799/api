@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid seriesId format: must be a 24-character hex string' });
     }
 
-    const objectId = mongoose.Types.ObjectId(seriesId);
+const objectId = new mongoose.Types.ObjectId(seriesId);
 
     const episodes = await Episode.find({ seriesId: objectId }).sort({ episodeNumber: 1 });
     res.json(episodes);

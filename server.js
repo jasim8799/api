@@ -25,7 +25,7 @@ mongoose.connect(process.env.MONGO_URI, {
 app.use('/api/movies', require('./routes/movies'));
 // You can add series and episodes routes similarly if you have them
 app.use('/api/series', require('./routes/series'));
-// app.use('/api/episodes', require('./routes/episodes'));
+app.use('/api/episodes', require('./routes/episodes'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

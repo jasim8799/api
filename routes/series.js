@@ -1,6 +1,16 @@
 const express = require('express');
+const { query, validationResult } = require('express-validator');
 const router = express.Router();
 const Series = require('../models/Series');
+
+// Helper middleware to check validation errors
+const validateRequest = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
 
 // POST a series
 router.post('/', async (req, res) => {
@@ -30,21 +40,63 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET all series or by category and region
-router.get('/', async (req, res) => {
-  const { category, region } = req.query;
-  try {
-    const filter = {};
-    if (category && category !== 'All') filter.category = category;
-if (region && region !== 'All') {
-  filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
-}
-    const series = await Series.find(filter);
-    res.json(series);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+// GET all series or by category and region with pagination and sorting
+router.get(
+  '/',
+  [
+    query('type').optional().isString(),
+    query('category').optional().isString(),
+    query('region').optional().isString(),
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 })
+  ],
+  validateRequest,
+  async (req, res) => {
+    try {
+      const { type, category, region, page = 1, limit = 20 } = req.query;
+      let filter = {};
+
+      if (type) filter.type = type.toLowerCase();
+
+      if (category && category !== 'All') {
+        if (category !== 'Trending' && category !== 'Recent') {
+          filter.category = { $regex: new RegExp(`^${category}$`, 'i') };
+        }
+      }
+
+      if (region && region !== 'All') {
+        filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
+      }
+
+      let query = Series.find(filter);
+
+      // Sorting
+      if (category === 'Trending') {
+        query = query.sort({ views: -1 });
+      } else if (category === 'Recent') {
+        query = query.sort({ createdAt: -1 });
+      }
+
+      // Pagination
+      const skip = (page - 1) * limit;
+      query = query.skip(skip).limit(parseInt(limit));
+
+      const series = await query.exec();
+      const total = await Series.countDocuments(filter);
+
+      res.json({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+        series
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: err.message });
+    }
   }
-});
+);
 
 // PUT update series
 router.put('/:id', async (req, res) => {

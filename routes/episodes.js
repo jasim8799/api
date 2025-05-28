@@ -27,12 +27,13 @@ router.get('/', async (req, res) => {
     const { seriesId } = req.query;
     if (!seriesId) return res.status(400).json({ error: 'seriesId query param required' });
 
-    let objectId;
-    try {
-      objectId = mongoose.Types.ObjectId(seriesId);
-    } catch (err) {
-      return res.status(400).json({ error: 'Invalid seriesId format' });
+    // Validate seriesId is a 24-character hex string
+    const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(seriesId);
+    if (!isValidObjectId) {
+      return res.status(400).json({ error: 'Invalid seriesId format: must be a 24-character hex string' });
     }
+
+    const objectId = mongoose.Types.ObjectId(seriesId);
 
     const episodes = await Episode.find({ seriesId: objectId }).sort({ episodeNumber: 1 });
     res.json(episodes);

@@ -75,6 +75,8 @@ router.get(
         query = query.sort({ views: -1 });
       } else if (category === 'Recent') {
         query = query.sort({ createdAt: -1 });
+      } else {
+        query = query.sort({ createdAt: -1 });
       }
 
       // Pagination

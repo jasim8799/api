@@ -20,6 +20,6 @@ const seriesSchema = new mongoose.Schema({
     required: true
   },
   type: { type: String, default: 'series' }   // always "series"
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('Series', seriesSchema);

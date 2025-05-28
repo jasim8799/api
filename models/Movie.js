@@ -20,8 +20,7 @@ const movieSchema = new mongoose.Schema({
     required: true
   },
   type: { type: String, default: 'movie', lowercase: true },
-  views: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now }
-});
+  views: { type: Number, default: 0 }
+}, { timestamps: true });
 
 module.exports = mongoose.model('Movie', movieSchema);

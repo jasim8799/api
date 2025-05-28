@@ -237,4 +237,14 @@ router.get('/titles', async (req, res) => {
   }
 });
 
+router.get('/all', async (req, res) => {
+  try {
+    const movies = await Movie.find({}, '_id title');
+    res.json(movies);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error fetching movie titles' });
+  }
+});
+
 module.exports = router;

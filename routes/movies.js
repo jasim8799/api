@@ -226,4 +226,15 @@ router.put('/:id/add-source',
   }
 );
 
+// GET movies titles (_id and title only) for dropdowns or selection lists
+router.get('/titles', async (req, res) => {
+  try {
+    const movies = await Movie.find({}, '_id title').exec();
+    res.json(movies);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch movie titles' });
+  }
+});
+
 module.exports = router;

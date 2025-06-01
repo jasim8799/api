@@ -138,4 +138,14 @@ const series = await Series.find(query);
   }
 });
 
+router.get('/titles', async (req, res) => {
+  try {
+    const series = await Series.find({}, '_id title').exec();
+    res.json(series);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch series titles' });
+  }
+});
+
 module.exports = router;

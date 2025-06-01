@@ -28,6 +28,12 @@ app.use('/api/series', require('./routes/series'));
 app.use('/api/episodes', require('./routes/episodes'));
 
 const PORT = process.env.PORT || 3000;
+
+// Root route for uptime check
+app.get('/', (req, res) => {
+  res.send('API is live');
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

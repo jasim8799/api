@@ -42,4 +42,24 @@ const objectId = new mongoose.Types.ObjectId(seriesId);
   }
 });
 
+router.get('/titles', async (req, res) => {
+  try {
+    const { seriesId } = req.query;
+    if (!seriesId) return res.status(400).json({ error: 'seriesId query param required' });
+
+    const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(seriesId);
+    if (!isValidObjectId) {
+      return res.status(400).json({ error: 'Invalid seriesId format' });
+    }
+
+    const objectId = new mongoose.Types.ObjectId(seriesId);
+
+    const episodes = await Episode.find({ seriesId: objectId }, '_id title').sort({ episodeNumber: 1 });
+
+    res.status(200).json(episodes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

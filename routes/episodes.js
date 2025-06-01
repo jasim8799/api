@@ -62,4 +62,8 @@ router.get('/titles', async (req, res) => {
   }
 });
 
+router.get('/ping', (req, res) => {
+  res.send('Episodes API is alive');
+});
+
 module.exports = router;

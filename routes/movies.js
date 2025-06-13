@@ -73,12 +73,12 @@ router.get(
     query('category').optional().isString(),
     query('region').optional().isString(),
     query('page').optional().isInt({ min: 1 }),
-    query('limit').optional().isInt({ min: 1, max: 100 })
+    query('limit').optional().isInt({ min: 1, max: 1000 })
   ],
   validateRequest,
   async (req, res) => {
     try {
-      const { type, category, region, page = 1, limit = 20 } = req.query;
+      const { type, category, region, page = 1, limit = 1000 } = req.query;
       let filter = {};
 
       if (type) filter.type = type.toLowerCase();

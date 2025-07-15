@@ -19,7 +19,7 @@ router.post(
     body('title').isString().notEmpty(),
     body('overview').isString().notEmpty(),
     body('posterPath').isURL(),
-    body('releaseDate').isISO8601(), // valid date string
+    body('releaseDate').isISO8601(),
     body('voteAverage').isNumeric(),
     body('category').isString().notEmpty(),
     body('region').isIn(['Hollywood', 'Bollywood']),
@@ -228,7 +228,7 @@ router.put('/:id/add-source',
   }
 );
 
-// GET movies titles (_id and title only) for dropdowns or selection lists
+// GET movies titles (_id and title only) for dropdowns
 router.get('/titles', async (req, res) => {
   try {
     const movies = await Movie.find({}, '_id title').exec();
@@ -239,6 +239,7 @@ router.get('/titles', async (req, res) => {
   }
 });
 
+// GET all movies (id + title)
 router.get('/all', async (req, res) => {
   try {
     const movies = await Movie.find({}, '_id title');
@@ -246,6 +247,24 @@ router.get('/all', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error fetching movie titles' });
+  }
+});
+
+// ✅ NEW - Search movies by title
+router.get('/search', [
+  query('title').isString().notEmpty()
+], validateRequest, async (req, res) => {
+  try {
+    const { title } = req.query;
+
+    const movies = await Movie.find({
+      title: { $regex: title, $options: 'i' }
+    });
+
+    res.json(movies);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to search movies' });
   }
 });
 

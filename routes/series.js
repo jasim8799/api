@@ -1,5 +1,5 @@
 const express = require('express');
-const { query, validationResult } = require('express-validator');
+const { query, validationResult, param } = require('express-validator');
 const router = express.Router();
 const Series = require('../models/Series');
 
@@ -40,7 +40,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET all series or by category and region with pagination and sorting
+// GET all series or by filters
 router.get(
   '/',
   [
@@ -70,7 +70,6 @@ router.get(
 
       let query = Series.find(filter);
 
-      // Sorting
       if (category === 'Trending') {
         query = query.sort({ views: -1 });
       } else if (category === 'Recent') {
@@ -79,7 +78,6 @@ router.get(
         query = query.sort({ createdAt: -1 });
       }
 
-      // Pagination
       const skip = (page - 1) * limit;
       query = query.skip(skip).limit(parseInt(limit));
 
@@ -124,14 +122,14 @@ router.delete('/:id', async (req, res) => {
 router.get('/category/:category', async (req, res) => {
   try {
     const category = req.params.category;
-const region = req.query.region;
-const query = { category };
+    const region = req.query.region;
+    const query = { category };
 
-if (region && region !== 'All') {
-  query.region = { $regex: new RegExp(`^${region}$`, 'i') };
-}
+    if (region && region !== 'All') {
+      query.region = { $regex: new RegExp(`^${region}$`, 'i') };
+    }
 
-const series = await Series.find(query);
+    const series = await Series.find(query);
     res.status(200).json(series);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch series by category' });
@@ -145,6 +143,24 @@ router.get('/titles', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch series titles' });
+  }
+});
+
+// ✅ NEW - Search series by title
+router.get('/search', [
+  query('title').isString().notEmpty()
+], validateRequest, async (req, res) => {
+  try {
+    const { title } = req.query;
+
+    const series = await Series.find({
+      title: { $regex: title, $options: 'i' }
+    });
+
+    res.json(series);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to search series' });
   }
 });
 

@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const Analytics = require('../models/analytics');
-const Crash = require('../models/crash');
 
 // POST /api/analytics/track
 router.post('/track', async (req, res) => {
@@ -48,35 +47,6 @@ router.get('/summary', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to get analytics summary.', error });
-  }
-});
-
-// POST /api/analytics/crash
-router.post('/crash', async (req, res) => {
-  try {
-    const { message, stack, device } = req.body;
-
-    const crash = new Crash({
-      message,
-      stack,
-      device,
-      timestamp: new Date(),
-    });
-
-    await crash.save();
-    res.status(201).json({ message: 'Crash report submitted successfully.' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to submit crash report.', error });
-  }
-});
-
-// GET /api/analytics/crashes
-router.get('/crashes', async (req, res) => {
-  try {
-    const crashes = await Crash.find().sort({ timestamp: -1 });
-    res.json(crashes);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch crashes.', error });
   }
 });
 

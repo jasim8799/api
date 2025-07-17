@@ -1,77 +1,82 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
+const Analytics = require('../models/analytics');
+const Crash = require('../models/crash');
 
-// Define schema
-const analyticsSchema = new mongoose.Schema({
-  event: String,
-  details: mongoose.Schema.Types.Mixed,
-  timestamp: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-// Create model
-const Analytics = mongoose.model('Analytics', analyticsSchema);
-
-/**
- * POST /api/analytics/track
- * Save a new event
- */
+// POST /api/analytics/track
 router.post('/track', async (req, res) => {
   try {
-    const data = req.body;
-    const newEvent = await Analytics.create({
-      event: data.event,
-      details: data.details || {},
+    const { event, data } = req.body;
+
+    if (!event) {
+      return res.status(400).json({ message: 'Event type is required.' });
+    }
+
+    const analytics = new Analytics({
+      event,
+      data,
+      timestamp: new Date(),
     });
-    res.json({ success: true, event: newEvent });
+
+    await analytics.save();
+    res.status(201).json({ message: 'Analytics event tracked successfully.' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to save analytics' });
+    res.status(500).json({ message: 'Failed to track analytics event.', error });
   }
 });
 
-/**
- * GET /api/analytics
- * List recent events
- */
-router.get('/', async (req, res) => {
-  try {
-    const events = await Analytics.find().sort({ timestamp: -1 }).limit(200);
-    res.json(events);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch analytics' });
-  }
-});
-
-/**
- * GET /api/analytics/summary
- * Return summary stats for admin dashboard
- */
+// GET /api/analytics/summary
 router.get('/summary', async (req, res) => {
   try {
-    const totalInstalls = await Analytics.countDocuments({ event: 'install' });
+    const totalInstalls = await Analytics.countDocuments({ event: 'app_install' });
     const totalViews = await Analytics.countDocuments({ event: 'movie_viewed' });
+    const totalPlays = await Analytics.countDocuments({ event: 'movie_play' });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
 
     const todayViews = await Analytics.countDocuments({
       event: 'movie_viewed',
-      timestamp: { $gte: today }
+      timestamp: { $gte: startOfDay },
     });
 
     res.json({
       totalInstalls,
       totalViews,
-      todayViews
+      todayViews,
+      totalPlays,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch summary' });
+    res.status(500).json({ message: 'Failed to get analytics summary.', error });
+  }
+});
+
+// POST /api/analytics/crash
+router.post('/crash', async (req, res) => {
+  try {
+    const { message, stack, device } = req.body;
+
+    const crash = new Crash({
+      message,
+      stack,
+      device,
+      timestamp: new Date(),
+    });
+
+    await crash.save();
+    res.status(201).json({ message: 'Crash report submitted successfully.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to submit crash report.', error });
+  }
+});
+
+// GET /api/analytics/crashes
+router.get('/crashes', async (req, res) => {
+  try {
+    const crashes = await Crash.find().sort({ timestamp: -1 });
+    res.json(crashes);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch crashes.', error });
   }
 });
 

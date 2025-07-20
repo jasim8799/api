@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Analytics = require('../models/analytics');
+const verifyApiKey = require('../middleware/auth'); // ✅ import
+
+router.use(verifyApiKey); // ✅ apply middleware to all movie routes
 
 // POST /api/analytics/track
 router.post('/track', async (req, res) => {

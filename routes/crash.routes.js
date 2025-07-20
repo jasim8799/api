@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const CrashReport = require('../models/CrashReport');
+const verifyApiKey = require('../middleware/auth'); // ✅ import
+
+router.use(verifyApiKey); // ✅ apply middleware to all movie routes
 
 // POST /api/crashes → save a crash
 router.post('/', async (req, res) => {

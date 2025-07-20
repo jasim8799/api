@@ -1,19 +1,39 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 const path = require('path');
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// --- Middleware --- //
+app.use(helmet()); // adds secure headers
+app.use(cors()); // optionally restrict: cors({ origin: 'https://your-app-domain.com' })
 app.use(express.json());
 
-// Serve static uploads folder
+// Rate Limiter
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // max requests per IP
+  message: 'Too many requests from this IP, please try again later.',
+});
+app.use('/api', limiter);
+
+// Serve static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// MongoDB connection
+// --- Token Auth Middleware --- //
+const verifyToken = (req, res, next) => {
+  const token = req.headers['x-api-key'];
+  if (!token || token !== process.env.SECRET_API_KEY) {
+    return res.status(403).json({ error: 'Unauthorized access' });
+  }
+  next();
+};
+
+// --- MongoDB --- //
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -21,22 +41,21 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('MongoDB connected'))
 .catch(err => console.error('MongoDB connection error:', err));
 
-// Routes
-app.use('/api/movies', require('./routes/movies'));
-app.use('/api/series', require('./routes/series'));
-app.use('/api/episodes', require('./routes/episodes'));
-app.use('/api/app', require('./routes/appVersion.routes'));
-app.use('/api/analytics', require('./routes/analytics'));
-app.use('/api/appstats', require('./routes/appStats.routes'));
-app.use('/api/crashes', require('./routes/crash.routes')); // ✅ NEW ROUTE
+// --- Protected Routes --- //
+app.use('/api/movies', verifyToken, require('./routes/movies'));
+app.use('/api/series', verifyToken, require('./routes/series'));
+app.use('/api/episodes', verifyToken, require('./routes/episodes'));
+app.use('/api/app', verifyToken, require('./routes/appVersion.routes'));
+app.use('/api/analytics', verifyToken, require('./routes/analytics'));
+app.use('/api/appstats', verifyToken, require('./routes/appStats.routes'));
+app.use('/api/crashes', verifyToken, require('./routes/crash.routes'));
 
-const PORT = process.env.PORT || 3000;
-
-// Root route for uptime check
+// --- Uptime Test --- //
 app.get('/', (req, res) => {
   res.send('API is live');
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

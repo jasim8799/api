@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const AppStats = require('../models/AppStats');
+const verifyApiKey = require('../middleware/auth'); // ✅ import
+
+router.use(verifyApiKey); // ✅ apply middleware to all movie routes
 
 // GET stats for admin panel
 router.get('/', async (req, res) => {

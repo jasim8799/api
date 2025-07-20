@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult, query, param } = require('express-validator');
 const Movie = require('../models/Movie');
+const verifyApiKey = require('../middleware/auth'); // ✅ import
+
+router.use(verifyApiKey); // ✅ apply middleware to all movie routes
 
 // Helper middleware to check validation errors
 const validateRequest = (req, res, next) => {

@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const AppVersion = require('../models/appVersion');
+const verifyApiKey = require('../middleware/auth'); // ✅ import
+
+router.use(verifyApiKey); // ✅ apply middleware to all movie routes
 
 // GET /api/app/version
 router.get('/version', async (req, res) => {

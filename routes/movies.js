@@ -1,12 +1,25 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { body, validationResult, query, param } = require('express-validator');
 const Movie = require('../models/Movie');
-const verifyApiKey = require('../middleware/auth'); // ✅ import
+const verifyApiKey = require('../middleware/auth');
 
-router.use(verifyApiKey); // ✅ apply middleware to all movie routes
+// ✅ Encryption setup
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(String('my32lengthsupersecretnooneknows1')).digest('base64').substr(0, 32);
+const IV = Buffer.from('8bytesiv12345678'); // Must be 16 bytes for AES
+const algorithm = 'aes-256-cbc';
 
-// Helper middleware to check validation errors
+function encrypt(text) {
+  const cipher = crypto.createCipheriv(algorithm, ENCRYPTION_KEY, IV);
+  let encrypted = cipher.update(text, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  return encrypted;
+}
+
+// ✅ Middleware
+router.use(verifyApiKey);
+
 const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -14,8 +27,8 @@ const validateRequest = (req, res, next) => {
   }
   next();
 };
-
 // POST create a new movie
+// ✅ POST - Create a new movie with encrypted URLs
 router.post(
   '/',
   [
@@ -47,6 +60,13 @@ router.post(
         voteAverage
       } = req.body;
 
+      // ✅ Encrypt all video link URLs
+      const encryptedVideoLinks = videoLinks.map(link => ({
+        quality: link.quality,
+        language: link.language,
+        url: encrypt(link.url)
+      }));
+
       const newMovie = new Movie({
         title,
         overview,
@@ -54,7 +74,7 @@ router.post(
         region,
         type: type ? type.toLowerCase() : 'movie',
         posterPath,
-        videoLinks,
+        videoLinks: encryptedVideoLinks,
         releaseDate,
         voteAverage
       });
@@ -129,34 +149,41 @@ router.get(
 );
 
 // PUT update movie by id
-router.put(
-  '/:id',
+// ✅ PUT /:id/add-source – Add encrypted video source to videoLinks array
+router.put('/:id/add-source',
   [
     param('id').isMongoId(),
-    body('title').optional().isString().notEmpty(),
-    body('overview').optional().isString().notEmpty(),
-    body('posterPath').optional().isURL(),
-    body('releaseDate').optional().isISO8601(),
-    body('voteAverage').optional().isNumeric(),
-    body('category').optional().isString().notEmpty(),
-    body('region').optional().isIn(['Hollywood', 'Bollywood']),
-    body('type').optional().isString(),
-    body('videoLinks').optional().isArray(),
+    body('videoSource').exists(),
+    body('videoSource.quality').isString().notEmpty(),
+    body('videoSource.language').isString().notEmpty(),
+    body('videoSource.url').isURL()
   ],
   validateRequest,
   async (req, res) => {
-    try {
-      const updateData = { ...req.body };
-      if (updateData.type) updateData.type = updateData.type.toLowerCase();
+    const { id } = req.params;
+    const { videoSource } = req.body;
 
-      const updatedMovie = await Movie.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    try {
+      // ✅ Encrypt video source URL
+      const encryptedSource = {
+        ...videoSource,
+        url: encrypt(videoSource.url)
+      };
+
+      const updatedMovie = await Movie.findByIdAndUpdate(
+        id,
+        { $push: { videoLinks: encryptedSource } },
+        { new: true }
+      );
+
       if (!updatedMovie) {
         return res.status(404).json({ message: 'Movie not found' });
       }
-      res.json(updatedMovie);
+
+      res.json({ message: 'Video source added', movie: updatedMovie });
     } catch (err) {
       console.error(err);
-      res.status(400).json({ error: err.message });
+      res.status(500).json({ message: 'Server error', error: err.message });
     }
   }
 );

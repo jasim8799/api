@@ -3,25 +3,25 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 require('dotenv').config();
 const path = require('path');
 
 const app = express();
 
 // --- Middleware --- //
-app.use(helmet()); // adds secure headers
-app.use(cors()); // optionally restrict: cors({ origin: 'https://your-app-domain.com' })
+app.use(helmet());
+app.use(cors());
 app.use(express.json());
 
-// Rate Limiter
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // max requests per IP
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: 'Too many requests from this IP, please try again later.',
 });
 app.use('/api', limiter);
 
-// Serve static uploads
+// Serve static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- Token Auth Middleware --- //
@@ -49,6 +49,18 @@ app.use('/api/app', verifyToken, require('./routes/appVersion.routes'));
 app.use('/api/analytics', verifyToken, require('./routes/analytics'));
 app.use('/api/appstats', verifyToken, require('./routes/appStats.routes'));
 app.use('/api/crashes', verifyToken, require('./routes/crash.routes'));
+
+// --- Proxy Cloudflare Video (Hides real Cloudflare URLs) --- //
+app.use('/proxy/video', verifyToken, createProxyMiddleware({
+  target: 'https://your-cloudflare-link.com', // only domain part, not full link
+  changeOrigin: true,
+  pathRewrite: {
+    '^/proxy/video': '', // strip /proxy/video from URL
+  },
+  onProxyReq(proxyReq, req, res) {
+    // Optional: log or inspect
+  }
+}));
 
 // --- Uptime Test --- //
 app.get('/', (req, res) => {

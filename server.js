@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 require('dotenv').config();
 const path = require('path');
+const { URL } = require('url');
 
 const app = express();
 
@@ -50,17 +51,33 @@ app.use('/api/analytics', verifyToken, require('./routes/analytics'));
 app.use('/api/appstats', verifyToken, require('./routes/appStats.routes'));
 app.use('/api/crashes', verifyToken, require('./routes/crash.routes'));
 
-// --- Proxy Cloudflare Video (Hides real Cloudflare URLs) --- //
+// --- Proxy Cloudflare Video (old) --- //
 app.use('/proxy/video', verifyToken, createProxyMiddleware({
-  target: 'https://your-cloudflare-link.com', // only domain part, not full link
+  target: 'https://your-cloudflare-link.com',
   changeOrigin: true,
   pathRewrite: {
-    '^/proxy/video': '', // strip /proxy/video from URL
-  },
-  onProxyReq(proxyReq, req, res) {
-    // Optional: log or inspect
+    '^/proxy/video': '',
   }
 }));
+
+// --- New General Proxy Route (example: /proxy?url=...) --- //
+app.get('/proxy', async (req, res, next) => {
+  try {
+    const targetUrl = req.query.url;
+    if (!targetUrl) {
+      return res.status(400).json({ error: 'Missing url parameter' });
+    }
+
+    const parsedUrl = new URL(targetUrl);
+    createProxyMiddleware({
+      target: `${parsedUrl.protocol}//${parsedUrl.host}`,
+      changeOrigin: true,
+      pathRewrite: (path, req) => parsedUrl.pathname + (parsedUrl.search || ''),
+    })(req, res, next);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+});
 
 // --- Uptime Test --- //
 app.get('/', (req, res) => {

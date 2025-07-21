@@ -1,34 +1,9 @@
 const express = require('express');
-const crypto = require('crypto');
 const router = express.Router();
 const { body, validationResult, query, param } = require('express-validator');
 const Movie = require('../models/Movie');
-const verifyApiKey = require('../middleware/auth');
 
-// ✅ Encryption setup
-const ENCRYPTION_KEY = crypto.createHash('sha256').update(String('my32lengthsupersecretnooneknows1')).digest('base64').substr(0, 32);
-//const IV = Buffer.from('8bytesiv12345678'); // Must be 16 bytes for AES
-const IV = Buffer.from('1234567890abcdef'); // ✅ Match Flutter
-const algorithm = 'aes-256-cbc';
-
-function encrypt(text) {
-  const cipher = crypto.createCipheriv(algorithm, ENCRYPTION_KEY, IV);
-  let encrypted = cipher.update(text, 'utf8', 'base64');
-  encrypted += cipher.final('base64');
-  return encrypted;
-}
-
-function decrypt(encryptedText) {
-  const decipher = crypto.createDecipheriv(algorithm, ENCRYPTION_KEY, IV);
-  let decrypted = decipher.update(encryptedText, 'base64', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
-
-
-// ✅ Middleware
-router.use(verifyApiKey);
-
+// Helper middleware to check validation errors
 const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -36,8 +11,8 @@ const validateRequest = (req, res, next) => {
   }
   next();
 };
+
 // POST create a new movie
-// ✅ POST - Create a new movie with encrypted URLs
 router.post(
   '/',
   [
@@ -69,13 +44,6 @@ router.post(
         voteAverage
       } = req.body;
 
-      // ✅ Encrypt all video link URLs
-      const encryptedVideoLinks = videoLinks.map(link => ({
-        quality: link.quality,
-        language: link.language,
-        url: encrypt(link.url)
-      }));
-
       const newMovie = new Movie({
         title,
         overview,
@@ -83,7 +51,7 @@ router.post(
         region,
         type: type ? type.toLowerCase() : 'movie',
         posterPath,
-        videoLinks: encryptedVideoLinks,
+        videoLinks,
         releaseDate,
         voteAverage
       });
@@ -96,20 +64,6 @@ router.post(
     }
   }
 );
-// ✅ Decrypt test route
-router.get('/decrypt-url', (req, res) => {
-  try {
-    const encrypted = req.query.q;
-    if (!encrypted) return res.status(400).json({ error: 'Missing ?q=' });
-
-    const decrypted = decrypt(encrypted);
-    res.json({ decrypted });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: 'Failed to decrypt', detail: err.message });
-  }
-});
-
 
 // GET movies with filters, sorting & pagination
 router.get(
@@ -172,41 +126,34 @@ router.get(
 );
 
 // PUT update movie by id
-// ✅ PUT /:id/add-source – Add encrypted video source to videoLinks array
-router.put('/:id/add-source',
+router.put(
+  '/:id',
   [
     param('id').isMongoId(),
-    body('videoSource').exists(),
-    body('videoSource.quality').isString().notEmpty(),
-    body('videoSource.language').isString().notEmpty(),
-    body('videoSource.url').isURL()
+    body('title').optional().isString().notEmpty(),
+    body('overview').optional().isString().notEmpty(),
+    body('posterPath').optional().isURL(),
+    body('releaseDate').optional().isISO8601(),
+    body('voteAverage').optional().isNumeric(),
+    body('category').optional().isString().notEmpty(),
+    body('region').optional().isIn(['Hollywood', 'Bollywood']),
+    body('type').optional().isString(),
+    body('videoLinks').optional().isArray(),
   ],
   validateRequest,
   async (req, res) => {
-    const { id } = req.params;
-    const { videoSource } = req.body;
-
     try {
-      // ✅ Encrypt video source URL
-      const encryptedSource = {
-        ...videoSource,
-        url: encrypt(videoSource.url)
-      };
+      const updateData = { ...req.body };
+      if (updateData.type) updateData.type = updateData.type.toLowerCase();
 
-      const updatedMovie = await Movie.findByIdAndUpdate(
-        id,
-        { $push: { videoLinks: encryptedSource } },
-        { new: true }
-      );
-
+      const updatedMovie = await Movie.findByIdAndUpdate(req.params.id, updateData, { new: true });
       if (!updatedMovie) {
         return res.status(404).json({ message: 'Movie not found' });
       }
-
-      res.json({ message: 'Video source added', movie: updatedMovie });
+      res.json(updatedMovie);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ message: 'Server error', error: err.message });
+      res.status(400).json({ error: err.message });
     }
   }
 );

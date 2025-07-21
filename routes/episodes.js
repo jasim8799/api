@@ -2,9 +2,6 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Episode = require('../models/Episode');
-const verifyApiKey = require('../middleware/auth'); // ✅ import
-
-router.use(verifyApiKey); // ✅ apply middleware to all movie routes
 
 // Add episode
 router.post('/', async (req, res) => {

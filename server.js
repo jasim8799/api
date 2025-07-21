@@ -10,6 +10,8 @@ const { URL } = require('url');
 
 const app = express();
 
+app.set('trust proxy', 1); // 👈 Required when behind a proxy (like Render)
+
 // --- Middleware --- //
 app.use(helmet());
 app.use(cors());

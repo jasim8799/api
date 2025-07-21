@@ -7,7 +7,8 @@ const verifyApiKey = require('../middleware/auth');
 
 // ✅ Encryption setup
 const ENCRYPTION_KEY = crypto.createHash('sha256').update(String('my32lengthsupersecretnooneknows1')).digest('base64').substr(0, 32);
-const IV = Buffer.from('8bytesiv12345678'); // Must be 16 bytes for AES
+//const IV = Buffer.from('8bytesiv12345678'); // Must be 16 bytes for AES
+const IV = Buffer.from('1234567890abcdef'); // ✅ Match Flutter
 const algorithm = 'aes-256-cbc';
 
 function encrypt(text) {
@@ -16,6 +17,14 @@ function encrypt(text) {
   encrypted += cipher.final('base64');
   return encrypted;
 }
+
+function decrypt(encryptedText) {
+  const decipher = crypto.createDecipheriv(algorithm, ENCRYPTION_KEY, IV);
+  let decrypted = decipher.update(encryptedText, 'base64', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
 
 // ✅ Middleware
 router.use(verifyApiKey);
@@ -87,6 +96,20 @@ router.post(
     }
   }
 );
+// ✅ Decrypt test route
+router.get('/decrypt-url', (req, res) => {
+  try {
+    const encrypted = req.query.q;
+    if (!encrypted) return res.status(400).json({ error: 'Missing ?q=' });
+
+    const decrypted = decrypt(encrypted);
+    res.json({ decrypted });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: 'Failed to decrypt', detail: err.message });
+  }
+});
+
 
 // GET movies with filters, sorting & pagination
 router.get(

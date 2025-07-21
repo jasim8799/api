@@ -15,6 +15,7 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -22,7 +23,7 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Serve static files
+// Static file hosting
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- Token Auth Middleware --- //
@@ -34,24 +35,28 @@ const verifyToken = (req, res, next) => {
   next();
 };
 
-// --- MongoDB --- //
+// --- MongoDB Connection --- //
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+.then(() => console.log('✅ MongoDB connected'))
+.catch(err => console.error('❌ MongoDB connection error:', err));
 
 // --- Protected Routes --- //
-app.use('/api/movies', verifyToken, require('./routes/movies'));
-app.use('/api/series', verifyToken, require('./routes/series'));
-app.use('/api/episodes', verifyToken, require('./routes/episodes'));
-app.use('/api/app', verifyToken, require('./routes/appVersion.routes'));
-app.use('/api/analytics', verifyToken, require('./routes/analytics'));
-app.use('/api/appstats', verifyToken, require('./routes/appStats.routes'));
-app.use('/api/crashes', verifyToken, require('./routes/crash.routes'));
+try {
+  app.use('/api/movies', verifyToken, require('./routes/movies'));
+  app.use('/api/series', verifyToken, require('./routes/series'));
+  app.use('/api/episodes', verifyToken, require('./routes/episodes'));
+  app.use('/api/app', verifyToken, require('./routes/appVersion.routes'));
+  app.use('/api/analytics', verifyToken, require('./routes/analytics'));
+  app.use('/api/appstats', verifyToken, require('./routes/appStats.routes'));
+  app.use('/api/crashes', verifyToken, require('./routes/crash.routes'));
+} catch (err) {
+  console.error('❌ Error mounting routes:', err);
+}
 
-// --- Proxy Cloudflare Video (old) --- //
+// --- Proxy Cloudflare Video --- //
 app.use('/proxy/video', verifyToken, createProxyMiddleware({
   target: 'https://your-cloudflare-link.com',
   changeOrigin: true,
@@ -60,7 +65,7 @@ app.use('/proxy/video', verifyToken, createProxyMiddleware({
   }
 }));
 
-// --- New General Proxy Route (example: /proxy?url=...) --- //
+// --- General Proxy Route --- //
 app.get('/proxy', async (req, res, next) => {
   try {
     const targetUrl = req.query.url;
@@ -75,16 +80,23 @@ app.get('/proxy', async (req, res, next) => {
       pathRewrite: (path, req) => parsedUrl.pathname + (parsedUrl.search || ''),
     })(req, res, next);
   } catch (err) {
+    console.error('❌ Proxy Error:', err);
     return res.status(400).json({ error: 'Invalid URL' });
   }
 });
 
 // --- Uptime Test --- //
 app.get('/', (req, res) => {
-  res.send('API is live');
+  res.send('✅ API is live');
+});
+
+// --- GLOBAL ERROR HANDLER --- //
+app.use((err, req, res, next) => {
+  console.error('🔥 Server Error:', err.stack || err);
+  res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

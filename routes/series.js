@@ -2,6 +2,9 @@ const express = require('express');
 const { query, validationResult, param } = require('express-validator');
 const router = express.Router();
 const Series = require('../models/Series');
+const verifyApiKey = require('../middleware/auth'); // ✅
+
+router.use(verifyApiKey); // ✅ Protect all episode routes
 
 // Helper middleware to check validation errors
 const validateRequest = (req, res, next) => {

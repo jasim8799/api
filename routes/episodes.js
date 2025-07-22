@@ -3,8 +3,8 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Episode = require('../models/Episode');
 
-const verifyApiKey = require('../middleware/auth');
-router.use(verifyApiKey);
+//const verifyApiKey = require('../middleware/auth');
+//router.use(verifyApiKey);
 
 // Add episode
 router.post('/', async (req, res) => {

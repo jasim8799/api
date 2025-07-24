@@ -14,26 +14,26 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// --- Rate Limiting ---
+// --- Rate Limiting (basic) ---
 const limiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 100, // Limit each IP to 100 requests per 10 mins
+  max: 100, // limit each IP
 });
 app.use(limiter);
 
-// --- Serve uploads ---
+// --- Serve uploads folder ---
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- MongoDB Connection ---
+// --- MongoDB connection ---
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true,
+  useUnifiedTopology: true
 })
-.then(() => console.log('✅ MongoDB connected'))
-.catch(err => console.error('❌ MongoDB connection error:', err));
+.then(() => console.log('MongoDB connected'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 // --- Token Auth Middleware ---
-const TOKEN = process.env.SECRET_TOKEN || 'mysecrettoken123';
+const TOKEN = process.env.SECRET_TOKEN || 'mysecrettoken123'; // use env in production
 
 function authMiddleware(req, res, next) {
   const auth = req.headers.authorization;
@@ -43,16 +43,16 @@ function authMiddleware(req, res, next) {
   next();
 }
 
-// --- Proxy: Render API ---
+// --- Proxy API from Render ---
 app.use('/proxy/api', authMiddleware, createProxyMiddleware({
-  target: 'https://your-render-api.onrender.com', // ✅ Change this to your actual Render API
+  target: 'https://your-render-api.onrender.com',
   changeOrigin: true,
   pathRewrite: { '^/proxy/api': '' },
 }));
 
-// --- Proxy: CDN Videos (Cloudflare, Bunny, etc.) ---
+// --- Proxy Videos (e.g., Cloudflare, Bunny, etc.) ---
 app.use('/proxy/video', authMiddleware, createProxyMiddleware({
-  target: 'https://your.video.cdn.com', // ✅ Replace with real video CDN
+  target: 'https://your.video.cdn.com',
   changeOrigin: true,
   pathRewrite: { '^/proxy/video': '' },
 }));
@@ -65,15 +65,14 @@ app.use('/api/app', require('./routes/appVersion.routes'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/appstats', require('./routes/appStats.routes'));
 app.use('/api/crashes', require('./routes/crash.routes'));
-app.use('/api/proxy-events', require('./routes/proxyEventLogger')); // ✅ renamed properly
 
-// --- Health Check ---
+// --- Health Check Route ---
 app.get('/', (req, res) => {
-  res.send('🚀 API is live');
+  res.send('API is live');
 });
 
 // --- Start Server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

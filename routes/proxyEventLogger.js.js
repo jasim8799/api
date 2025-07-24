@@ -16,7 +16,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ message: 'Event logged successfully' });
   } catch (err) {
-    console.error('Proxy Event Logging Error:', err);
+    console.error('❌ Proxy Event Logging Error:', err);
     res.status(500).json({ error: 'Server error while logging event' });
   }
 });

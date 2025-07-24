@@ -66,6 +66,8 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/appstats', require('./routes/appStats.routes'));
 app.use('/api/crashes', require('./routes/crash.routes'));
 app.use('/api/proxy-analytics', require('./routes/proxyAnalytics'));
+app.use('/api/proxy-events', require('./routes/proxyEventLogger'));
+
 
 // --- Health Check Route ---
 app.get('/', (req, res) => {

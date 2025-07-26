@@ -68,7 +68,7 @@ router.post(
   }
 );
 
-// ✅ UPDATED: GET movies with filters, sorting & pagination
+// GET movies with filters, sorting & pagination
 router.get(
   '/',
   [
@@ -81,23 +81,24 @@ router.get(
   validateRequest,
   async (req, res) => {
     try {
-      const { type, category, region } = req.query;
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const skip = (page - 1) * limit;
-
+      const { type, category, region, page = 1, limit = 1000 } = req.query;
       let filter = {};
+
       if (type) filter.type = type.toLowerCase();
-      if (category && category !== 'All' && category !== 'Trending' && category !== 'Recent') {
-        filter.category = { $regex: new RegExp(`^${category}$`, 'i') };
+
+      if (category && category !== 'All') {
+        if (category !== 'Trending' && category !== 'Recent') {
+          filter.category = { $regex: new RegExp(`^${category}$`, 'i') };
+        }
       }
+
       if (region && region !== 'All') {
         filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
       }
 
       let query = Movie.find(filter);
 
-      // Sorting logic
+      // Sorting
       if (category === 'Trending') {
         query = query.sort({ views: -1 });
       } else if (category === 'Recent') {
@@ -106,15 +107,16 @@ router.get(
         query = query.sort({ createdAt: -1 });
       }
 
-      // Apply pagination
-      query = query.skip(skip).limit(limit);
+      // Pagination
+      const skip = (page - 1) * limit;
+      query = query.skip(skip).limit(parseInt(limit));
 
       const movies = await query.exec();
       const total = await Movie.countDocuments(filter);
 
       res.json({
-        page,
-        limit,
+        page: parseInt(page),
+        limit: parseInt(limit),
         total,
         totalPages: Math.ceil(total / limit),
         movies

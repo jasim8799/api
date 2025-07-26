@@ -3,11 +3,14 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression'); // ✅ Added
 const { createProxyMiddleware } = require('http-proxy-middleware');
 require('dotenv').config();
 const path = require('path');
 
 const app = express();
+// --- Compression ---
+app.use(compression()); // ✅ Added
 
 // --- Middleware ---
 app.use(helmet());

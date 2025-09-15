@@ -3,6 +3,7 @@ const router = express.Router();
 const { body, validationResult, query, param } = require('express-validator');
 const Movie = require('../models/Movie');
 const verifyApiKey = require('../middleware/auth'); // ✅
+const axios = require("axios"); // ✅ For storage health check
 
 router.use(verifyApiKey); // ✅ Protect all episode routes
 
@@ -14,6 +15,23 @@ const validateRequest = (req, res, next) => {
   }
   next();
 };
+
+// 🔹 Helper to check storage provider status
+async function checkStorageStatus() {
+  let status = { cloudflare: false, wasabi: false };
+
+  try {
+    await axios.head("https://your-cloudflare-test-file.mp4", { timeout: 5000 });
+    status.cloudflare = true;
+  } catch (e) {}
+
+  try {
+    await axios.head("https://your-wasabi-test-file.mp4", { timeout: 5000 });
+    status.wasabi = true;
+  } catch (e) {}
+
+  return status;
+}
 
 // POST create a new movie
 router.post(
@@ -30,7 +48,8 @@ router.post(
     body('videoLinks').isArray({ min: 1 }),
     body('videoLinks.*.quality').isString().notEmpty(),
     body('videoLinks.*.language').isString().notEmpty(),
-    body('videoLinks.*.url').isURL()
+    body('videoLinks.*.url').isURL(),
+    body('storageProvider').optional().isIn(['cloudflare', 'wasabi']) // ✅ Added
   ],
   validateRequest,
   async (req, res) => {
@@ -44,7 +63,8 @@ router.post(
         posterPath,
         videoLinks,
         releaseDate,
-        voteAverage
+        voteAverage,
+        storageProvider
       } = req.body;
 
       const newMovie = new Movie({
@@ -56,7 +76,8 @@ router.post(
         posterPath,
         videoLinks,
         releaseDate,
-        voteAverage
+        voteAverage,
+        storageProvider: storageProvider || 'cloudflare' // ✅ default
       });
 
       await newMovie.save();
@@ -68,7 +89,7 @@ router.post(
   }
 );
 
-// GET movies with filters, sorting & pagination
+// GET movies with filters, sorting & pagination (✅ updated with failover)
 router.get(
   '/',
   [
@@ -85,33 +106,43 @@ router.get(
       let filter = {};
 
       if (type) filter.type = type.toLowerCase();
-
       if (category && category !== 'All') {
         if (category !== 'Trending' && category !== 'Recent') {
           filter.category = { $regex: new RegExp(`^${category}$`, 'i') };
         }
       }
-
       if (region && region !== 'All') {
         filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
       }
 
-      let query = Movie.find(filter);
+      // ✅ Apply storage failover
+      const status = await checkStorageStatus();
+
+      if (status.cloudflare && !status.wasabi) {
+        filter.storageProvider = 'cloudflare';
+      } else if (!status.cloudflare && status.wasabi) {
+        filter.storageProvider = 'wasabi';
+      } else if (!status.cloudflare && !status.wasabi) {
+        return res.status(503).json({ message: 'All storage providers are down' });
+      }
+      // If both alive → no filter, show all
+
+      let queryBuilder = Movie.find(filter);
 
       // Sorting
       if (category === 'Trending') {
-        query = query.sort({ views: -1 });
+        queryBuilder = queryBuilder.sort({ views: -1 });
       } else if (category === 'Recent') {
-        query = query.sort({ createdAt: -1 });
+        queryBuilder = queryBuilder.sort({ createdAt: -1 });
       } else {
-        query = query.sort({ createdAt: -1 });
+        queryBuilder = queryBuilder.sort({ createdAt: -1 });
       }
 
       // Pagination
       const skip = (page - 1) * limit;
-      query = query.skip(skip).limit(parseInt(limit));
+      queryBuilder = queryBuilder.skip(skip).limit(parseInt(limit));
 
-      const movies = await query.exec();
+      const movies = await queryBuilder.exec();
       const total = await Movie.countDocuments(filter);
 
       res.json({
@@ -128,6 +159,8 @@ router.get(
   }
 );
 
+// (✅ other routes remain unchanged)
+
 // PUT update movie by id
 router.put(
   '/:id',
@@ -142,6 +175,7 @@ router.put(
     body('region').optional().isIn(['Hollywood', 'Bollywood']),
     body('type').optional().isString(),
     body('videoLinks').optional().isArray(),
+    body('storageProvider').optional().isIn(['cloudflare', 'wasabi']) // ✅
   ],
   validateRequest,
   async (req, res) => {
@@ -160,6 +194,8 @@ router.put(
     }
   }
 );
+
+// (✅ rest of your routes untouched ...)
 
 // DELETE movie by id
 router.delete('/:id', [param('id').isMongoId()], validateRequest, async (req, res) => {

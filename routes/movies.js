@@ -65,7 +65,7 @@ router.post(
     body('videoLinks.*.quality').isString().notEmpty(),
     body('videoLinks.*.language').isString().notEmpty(),
     body('videoLinks.*.url').isURL(),
-    body('storageProvider').optional().isIn(['cloudflare', 'wasabi']) // ✅ Added
+    body('storageProvider').optional().isIn(['cloudflare', 'wasabi'])
   ],
   validateRequest,
   async (req, res) => {
@@ -93,7 +93,7 @@ router.post(
         videoLinks,
         releaseDate,
         voteAverage,
-        storageProvider: storageProvider || 'cloudflare' // ✅ default
+        storageProvider: storageProvider || 'cloudflare'
       });
 
       await newMovie.save();
@@ -105,7 +105,7 @@ router.post(
   }
 );
 
-// GET movies with filters, sorting & pagination (✅ updated with failover)
+// ✅ GET movies with filters, sorting & pagination (failover inside videoLinks)
 router.get(
   '/',
   [
@@ -134,30 +134,14 @@ router.get(
         baseFilter.region = { $regex: new RegExp(`^${region}$`, 'i') };
       }
 
+      // 🔹 check provider status
       const status = await checkStorageStatus();
-
-      let providerFilter = null;
-      if (status.cloudflare && !status.wasabi) {
-        providerFilter = { storageProvider: 'cloudflare' };
-      } else if (!status.cloudflare && status.wasabi) {
-        providerFilter = { storageProvider: 'wasabi' };
-      } else if (!status.cloudflare && !status.wasabi) {
-        // fallback: try to fetch from DB (cloudflare first, then wasabi)
-        const cfMovies = await Movie.find({ ...baseFilter, storageProvider: 'cloudflare' }).limit(perPage).skip(skip);
-        if (cfMovies.length > 0) {
-          return res.json({ page: pageNum, limit: perPage, movies: cfMovies, fallback: 'cloudflare' });
-        }
-        const wMovies = await Movie.find({ ...baseFilter, storageProvider: 'wasabi' }).limit(perPage).skip(skip);
-        if (wMovies.length > 0) {
-          return res.json({ page: pageNum, limit: perPage, movies: wMovies, fallback: 'wasabi' });
-        }
-        return res.status(503).json({ message: 'No storage providers available and no movies found' });
+      if (!status.cloudflare && !status.wasabi) {
+        return res.status(503).json({ message: 'All storage providers are down' });
       }
 
-      const finalFilter = providerFilter ? { ...baseFilter, ...providerFilter } : baseFilter;
-      let queryBuilder = Movie.find(finalFilter);
-
-      // Sorting
+      // 🔹 fetch movies normally
+      let queryBuilder = Movie.find(baseFilter);
       if (category === 'Trending') {
         queryBuilder = queryBuilder.sort({ views: -1 });
       } else if (category === 'Recent') {
@@ -165,11 +149,24 @@ router.get(
       } else {
         queryBuilder = queryBuilder.sort({ createdAt: -1 });
       }
-
       queryBuilder = queryBuilder.skip(skip).limit(perPage);
 
-      const movies = await queryBuilder.exec();
-      const total = await Movie.countDocuments(finalFilter);
+      let movies = await queryBuilder.exec();
+      const total = await Movie.countDocuments(baseFilter);
+
+      // 🔹 filter videoLinks based on provider status
+      movies = movies.map(m => {
+        const filteredLinks = m.videoLinks.filter(link => {
+          if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
+            return status.cloudflare;
+          }
+          if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
+            return status.wasabi;
+          }
+          return true; // keep if unsure
+        });
+        return { ...m.toObject(), videoLinks: filteredLinks };
+      }).filter(m => m.videoLinks.length > 0); // remove movies with no valid links
 
       res.json({
         page: pageNum,
@@ -199,7 +196,7 @@ router.put(
     body('region').optional().isIn(['Hollywood', 'Bollywood']),
     body('type').optional().isString(),
     body('videoLinks').optional().isArray(),
-    body('storageProvider').optional().isIn(['cloudflare', 'wasabi']) // ✅
+    body('storageProvider').optional().isIn(['cloudflare', 'wasabi'])
   ],
   validateRequest,
   async (req, res) => {

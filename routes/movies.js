@@ -16,20 +16,36 @@ const validateRequest = (req, res, next) => {
   next();
 };
 
-// 🔹 Helper to check storage provider status
-async function checkStorageStatus() {
+// 🔹 Storage health check with short cache
+const STORAGE_CACHE_TTL = 10 * 1000; // 10 sec
+let storageCache = { status: { cloudflare: false, wasabi: false }, expiresAt: 0 };
+
+async function rawCheckStorageStatus() {
   let status = { cloudflare: false, wasabi: false };
 
   try {
-    await axios.head("https://your-cloudflare-test-file.mp4", { timeout: 5000 });
+    await axios.head(process.env.CF_TEST_URL || "https://your-cloudflare-test-file.mp4", { timeout: 5000 });
     status.cloudflare = true;
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Cloudflare check failed:", e.message);
+  }
 
   try {
-    await axios.head("https://your-wasabi-test-file.mp4", { timeout: 5000 });
+    await axios.head(process.env.WASABI_TEST_URL || "https://your-wasabi-test-file.mp4", { timeout: 5000 });
     status.wasabi = true;
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Wasabi check failed:", e.message);
+  }
 
+  return status;
+}
+
+async function checkStorageStatus() {
+  if (Date.now() < storageCache.expiresAt) {
+    return storageCache.status;
+  }
+  const status = await rawCheckStorageStatus();
+  storageCache = { status, expiresAt: Date.now() + STORAGE_CACHE_TTL };
   return status;
 }
 
@@ -103,31 +119,43 @@ router.get(
   async (req, res) => {
     try {
       const { type, category, region, page = 1, limit = 1000 } = req.query;
-      let filter = {};
+      const pageNum = parseInt(page);
+      const perPage = parseInt(limit);
+      const skip = (pageNum - 1) * perPage;
 
-      if (type) filter.type = type.toLowerCase();
+      let baseFilter = {};
+      if (type) baseFilter.type = type.toLowerCase();
       if (category && category !== 'All') {
         if (category !== 'Trending' && category !== 'Recent') {
-          filter.category = { $regex: new RegExp(`^${category}$`, 'i') };
+          baseFilter.category = { $regex: new RegExp(`^${category}$`, 'i') };
         }
       }
       if (region && region !== 'All') {
-        filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
+        baseFilter.region = { $regex: new RegExp(`^${region}$`, 'i') };
       }
 
-      // ✅ Apply storage failover
       const status = await checkStorageStatus();
 
+      let providerFilter = null;
       if (status.cloudflare && !status.wasabi) {
-        filter.storageProvider = 'cloudflare';
+        providerFilter = { storageProvider: 'cloudflare' };
       } else if (!status.cloudflare && status.wasabi) {
-        filter.storageProvider = 'wasabi';
+        providerFilter = { storageProvider: 'wasabi' };
       } else if (!status.cloudflare && !status.wasabi) {
-        return res.status(503).json({ message: 'All storage providers are down' });
+        // fallback: try to fetch from DB (cloudflare first, then wasabi)
+        const cfMovies = await Movie.find({ ...baseFilter, storageProvider: 'cloudflare' }).limit(perPage).skip(skip);
+        if (cfMovies.length > 0) {
+          return res.json({ page: pageNum, limit: perPage, movies: cfMovies, fallback: 'cloudflare' });
+        }
+        const wMovies = await Movie.find({ ...baseFilter, storageProvider: 'wasabi' }).limit(perPage).skip(skip);
+        if (wMovies.length > 0) {
+          return res.json({ page: pageNum, limit: perPage, movies: wMovies, fallback: 'wasabi' });
+        }
+        return res.status(503).json({ message: 'No storage providers available and no movies found' });
       }
-      // If both alive → no filter, show all
 
-      let queryBuilder = Movie.find(filter);
+      const finalFilter = providerFilter ? { ...baseFilter, ...providerFilter } : baseFilter;
+      let queryBuilder = Movie.find(finalFilter);
 
       // Sorting
       if (category === 'Trending') {
@@ -138,18 +166,16 @@ router.get(
         queryBuilder = queryBuilder.sort({ createdAt: -1 });
       }
 
-      // Pagination
-      const skip = (page - 1) * limit;
-      queryBuilder = queryBuilder.skip(skip).limit(parseInt(limit));
+      queryBuilder = queryBuilder.skip(skip).limit(perPage);
 
       const movies = await queryBuilder.exec();
-      const total = await Movie.countDocuments(filter);
+      const total = await Movie.countDocuments(finalFilter);
 
       res.json({
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: perPage,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / perPage),
         movies
       });
     } catch (err) {
@@ -158,8 +184,6 @@ router.get(
     }
   }
 );
-
-// (✅ other routes remain unchanged)
 
 // PUT update movie by id
 router.put(
@@ -194,8 +218,6 @@ router.put(
     }
   }
 );
-
-// (✅ rest of your routes untouched ...)
 
 // DELETE movie by id
 router.delete('/:id', [param('id').isMongoId()], validateRequest, async (req, res) => {

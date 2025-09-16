@@ -151,21 +151,20 @@ router.get(
       let movies = await queryBuilder.exec();
       const total = await Movie.countDocuments(baseFilter);
 
-    // 🔹 filter videoLinks based on provider status but keep all links
-movies = movies.map(m => {
-  const links = m.videoLinks.map(link => {
-    let isActive = true;
-    if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
-      isActive = status.cloudflare;
-    } else if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
-      isActive = status.wasabi;
-    }
-    return { ...link, active: isActive };
-  });
-  return { ...m.toObject(), videoLinks: links };
-});
+      // 🔹 map movies: ensure videoSources always exists, add active flag
+      movies = movies.map(m => {
+        const links = (m.videoLinks || m.videoSources || []).map(link => {
+          let isActive = true;
+          if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
+            isActive = status.cloudflare;
+          } else if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
+            isActive = status.wasabi;
+          }
+          return { ...link, active: isActive };
+        });
+        return { ...m.toObject(), videoLinks: links, videoSources: links };
+      });
 
-      // ✅ Return all movies (even if videoLinks = [])
       res.json({
         page: pageNum,
         limit: perPage,
@@ -246,11 +245,6 @@ router.put('/:id/increment-views', [param('id').isMongoId()], validateRequest, a
   }
 });
 
-// GET movies by category with optional region filter
-router.get('/category/:category', [param('category').isString()], validateRequest, async (req, res) => {
-  res.status(410).json({ message: 'This endpoint is deprecated. Please use GET /api/movies with category and region query parameters.' });
-});
-
 // Add a video source to existing movie videoLinks array
 router.put('/:id/add-source',
   [
@@ -306,7 +300,7 @@ router.get('/all', async (req, res) => {
   }
 });
 
-// ✅ NEW - Search movies by title
+// ✅ Search movies by title
 router.get('/search', [
   query('title').isString().notEmpty()
 ], validateRequest, async (req, res) => {
@@ -317,7 +311,22 @@ router.get('/search', [
       title: { $regex: title, $options: 'i' }
     });
 
-    res.json(movies);
+    // Map videoLinks & videoSources to ensure compatibility
+    const status = await checkStorageStatus();
+    const mapped = movies.map(m => {
+      const links = (m.videoLinks || m.videoSources || []).map(link => {
+        let isActive = true;
+        if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
+          isActive = status.cloudflare;
+        } else if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
+          isActive = status.wasabi;
+        }
+        return { ...link, active: isActive };
+      });
+      return { ...m.toObject(), videoLinks: links, videoSources: links };
+    });
+
+    res.json(mapped);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to search movies' });

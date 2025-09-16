@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult, query, param } = require('express-validator');
 const Movie = require('../models/Movie');
-const verifyApiKey = require('../middleware/auth');
-const axios = require("axios");
+const verifyApiKey = require('../middleware/auth'); // ✅
+const axios = require("axios"); // ✅ For storage health check
 
-router.use(verifyApiKey);
+router.use(verifyApiKey); // ✅ Protect all movie routes
 
 // Helper middleware to check validation errors
 const validateRequest = (req, res, next) => {
@@ -118,7 +118,7 @@ router.get(
   validateRequest,
   async (req, res) => {
     try {
-      const { type, category, region, page = 1, limit = 20 } = req.query;
+      const { type, category, region, page = 1, limit = 1000 } = req.query;
       const pageNum = parseInt(page);
       const perPage = parseInt(limit);
       const skip = (pageNum - 1) * perPage;
@@ -151,26 +151,28 @@ router.get(
       let movies = await queryBuilder.exec();
       const total = await Movie.countDocuments(baseFilter);
 
-      // 🔹 map movies: ensure videoSources always exists, add active flag
+      // 🔹 filter videoLinks based on provider status
       movies = movies.map(m => {
-        const links = (m.videoLinks || m.videoSources || []).map(link => {
-          let isActive = true;
+        const filteredLinks = m.videoLinks.filter(link => {
           if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
-            isActive = status.cloudflare;
-          } else if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
-            isActive = status.wasabi;
+            return status.cloudflare; // keep only if Cloudflare is up
           }
-          return { ...link, active: isActive };
+          if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
+            return status.wasabi; // keep only if Wasabi is up
+          }
+          return true; // keep unknown
         });
-        return { ...m.toObject(), videoLinks: links, videoSources: links };
+
+        return { ...m.toObject(), videoLinks: filteredLinks };
       });
 
+      // ✅ Always return JSON, never 503 (if no working links, movies[] can be empty)
       res.json({
         page: pageNum,
         limit: perPage,
         total,
         totalPages: Math.ceil(total / perPage),
-        movies
+        movies: movies.filter(m => m.videoLinks.length > 0)
       });
     } catch (err) {
       console.error(err);
@@ -245,6 +247,11 @@ router.put('/:id/increment-views', [param('id').isMongoId()], validateRequest, a
   }
 });
 
+// GET movies by category with optional region filter
+router.get('/category/:category', [param('category').isString()], validateRequest, async (req, res) => {
+  res.status(410).json({ message: 'This endpoint is deprecated. Please use GET /api/movies with category and region query parameters.' });
+});
+
 // Add a video source to existing movie videoLinks array
 router.put('/:id/add-source',
   [
@@ -300,7 +307,7 @@ router.get('/all', async (req, res) => {
   }
 });
 
-// ✅ Search movies by title
+// ✅ NEW - Search movies by title
 router.get('/search', [
   query('title').isString().notEmpty()
 ], validateRequest, async (req, res) => {
@@ -311,22 +318,7 @@ router.get('/search', [
       title: { $regex: title, $options: 'i' }
     });
 
-    // Map videoLinks & videoSources to ensure compatibility
-    const status = await checkStorageStatus();
-    const mapped = movies.map(m => {
-      const links = (m.videoLinks || m.videoSources || []).map(link => {
-        let isActive = true;
-        if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
-          isActive = status.cloudflare;
-        } else if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
-          isActive = status.wasabi;
-        }
-        return { ...link, active: isActive };
-      });
-      return { ...m.toObject(), videoLinks: links, videoSources: links };
-    });
-
-    res.json(mapped);
+    res.json(movies);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to search movies' });

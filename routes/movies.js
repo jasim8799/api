@@ -5,7 +5,7 @@ const Movie = require('../models/Movie');
 const verifyApiKey = require('../middleware/auth'); // ✅
 const axios = require("axios"); // ✅ For storage health check
 
-router.use(verifyApiKey); // ✅ Protect all episode routes
+router.use(verifyApiKey); // ✅ Protect all movie routes
 
 // Helper middleware to check validation errors
 const validateRequest = (req, res, next) => {
@@ -136,9 +136,6 @@ router.get(
 
       // 🔹 check provider status
       const status = await checkStorageStatus();
-      if (!status.cloudflare && !status.wasabi) {
-        return res.status(503).json({ message: 'All storage providers are down' });
-      }
 
       // 🔹 fetch movies normally
       let queryBuilder = Movie.find(baseFilter);
@@ -158,22 +155,24 @@ router.get(
       movies = movies.map(m => {
         const filteredLinks = m.videoLinks.filter(link => {
           if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
-            return status.cloudflare;
+            return status.cloudflare; // keep only if Cloudflare is up
           }
           if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
-            return status.wasabi;
+            return status.wasabi; // keep only if Wasabi is up
           }
-          return true; // keep if unsure
+          return true; // keep unknown
         });
-        return { ...m.toObject(), videoLinks: filteredLinks };
-      }).filter(m => m.videoLinks.length > 0); // remove movies with no valid links
 
+        return { ...m.toObject(), videoLinks: filteredLinks };
+      });
+
+      // ✅ Always return JSON, never 503 (if no working links, movies[] can be empty)
       res.json({
         page: pageNum,
         limit: perPage,
         total,
         totalPages: Math.ceil(total / perPage),
-        movies
+        movies: movies.filter(m => m.videoLinks.length > 0)
       });
     } catch (err) {
       console.error(err);

@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult, query, param } = require('express-validator');
 const Movie = require('../models/Movie');
-const verifyApiKey = require('../middleware/auth'); // ✅
-const axios = require("axios"); // ✅ For storage health check
+const verifyApiKey = require('../middleware/auth');
+const axios = require("axios");
 
-router.use(verifyApiKey); // ✅ Protect all movie routes
+router.use(verifyApiKey);
 
 // Helper middleware to check validation errors
 const validateRequest = (req, res, next) => {
@@ -118,7 +118,7 @@ router.get(
   validateRequest,
   async (req, res) => {
     try {
-      const { type, category, region, page = 1, limit = 1000 } = req.query;
+      const { type, category, region, page = 1, limit = 20 } = req.query;
       const pageNum = parseInt(page);
       const perPage = parseInt(limit);
       const skip = (pageNum - 1) * perPage;
@@ -151,28 +151,27 @@ router.get(
       let movies = await queryBuilder.exec();
       const total = await Movie.countDocuments(baseFilter);
 
-      // 🔹 filter videoLinks based on provider status
+      // 🔹 filter videoLinks based on provider status (don’t drop movie)
       movies = movies.map(m => {
         const filteredLinks = m.videoLinks.filter(link => {
           if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
-            return status.cloudflare; // keep only if Cloudflare is up
+            return status.cloudflare;
           }
           if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
-            return status.wasabi; // keep only if Wasabi is up
+            return status.wasabi;
           }
-          return true; // keep unknown
+          return true;
         });
-
         return { ...m.toObject(), videoLinks: filteredLinks };
       });
 
-      // ✅ Always return JSON, never 503 (if no working links, movies[] can be empty)
+      // ✅ Return all movies (even if videoLinks = [])
       res.json({
         page: pageNum,
         limit: perPage,
         total,
         totalPages: Math.ceil(total / perPage),
-        movies: movies.filter(m => m.videoLinks.length > 0)
+        movies
       });
     } catch (err) {
       console.error(err);

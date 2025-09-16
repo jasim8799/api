@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult, query, param } = require('express-validator');
 const Series = require('../models/Series');
-const verifyApiKey = require('../middleware/auth'); // ✅
-const axios = require("axios"); // ✅ For storage health check
+const verifyApiKey = require('../middleware/auth'); 
+const axios = require("axios"); 
 
 router.use(verifyApiKey);
 
-// Helper middleware to check validation errors
+// ✅ Validation helper
 const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -16,24 +16,40 @@ const validateRequest = (req, res, next) => {
   next();
 };
 
-// 🔹 Helper to check storage provider status
-async function checkStorageStatus() {
+// ✅ Storage health check with short cache
+const STORAGE_CACHE_TTL = 10 * 1000; // 10 sec
+let storageCache = { status: { cloudflare: false, wasabi: false }, expiresAt: 0 };
+
+async function rawCheckStorageStatus() {
   let status = { cloudflare: false, wasabi: false };
 
   try {
-    await axios.head("https://your-cloudflare-test-file.mp4", { timeout: 5000 });
+    await axios.head(process.env.CF_TEST_URL || "https://your-cloudflare-test-file.mp4", { timeout: 5000 });
     status.cloudflare = true;
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Cloudflare check failed:", e.message);
+  }
 
   try {
-    await axios.head("https://your-wasabi-test-file.mp4", { timeout: 5000 });
+    await axios.head(process.env.WASABI_TEST_URL || "https://your-wasabi-test-file.mp4", { timeout: 5000 });
     status.wasabi = true;
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Wasabi check failed:", e.message);
+  }
 
   return status;
 }
 
-// POST create a new series
+async function checkStorageStatus() {
+  if (Date.now() < storageCache.expiresAt) {
+    return storageCache.status;
+  }
+  const status = await rawCheckStorageStatus();
+  storageCache = { status, expiresAt: Date.now() + STORAGE_CACHE_TTL };
+  return status;
+}
+
+// ✅ POST create a new series
 router.post(
   '/',
   [
@@ -45,7 +61,7 @@ router.post(
     body('category').isString().notEmpty(),
     body('region').isIn(['Hollywood', 'Bollywood']),
     body('type').optional().isString(),
-    body('storageProvider').optional().isIn(['cloudflare', 'wasabi']) // ✅
+    body('storageProvider').optional().isIn(['cloudflare', 'wasabi'])
   ],
   validateRequest,
   async (req, res) => {
@@ -71,7 +87,7 @@ router.post(
         posterPath,
         releaseDate,
         voteAverage,
-        storageProvider: storageProvider || 'cloudflare' // ✅ default
+        storageProvider: storageProvider || 'cloudflare'
       });
 
       await newSeries.save();
@@ -83,7 +99,7 @@ router.post(
   }
 );
 
-// GET series with filters, sorting & pagination (✅ updated with failover)
+// ✅ GET series with failover
 router.get(
   '/',
   [
@@ -97,8 +113,11 @@ router.get(
   async (req, res) => {
     try {
       const { type, category, region, page = 1, limit = 1000 } = req.query;
-      let filter = {};
+      const pageNum = parseInt(page);
+      const perPage = parseInt(limit);
+      const skip = (pageNum - 1) * perPage;
 
+      let filter = {};
       if (type) filter.type = type.toLowerCase();
       if (category && category !== 'All') {
         if (category !== 'Trending' && category !== 'Recent') {
@@ -109,21 +128,13 @@ router.get(
         filter.region = { $regex: new RegExp(`^${region}$`, 'i') };
       }
 
-      // ✅ Apply storage failover
+      // ✅ check provider status
       const status = await checkStorageStatus();
-
-      if (status.cloudflare && !status.wasabi) {
-        filter.storageProvider = 'cloudflare';
-      } else if (!status.cloudflare && status.wasabi) {
-        filter.storageProvider = 'wasabi';
-      } else if (!status.cloudflare && !status.wasabi) {
+      if (!status.cloudflare && !status.wasabi) {
         return res.status(503).json({ message: 'All storage providers are down' });
       }
-      // If both alive → no filter, show all
 
       let queryBuilder = Series.find(filter);
-
-      // Sorting
       if (category === 'Trending') {
         queryBuilder = queryBuilder.sort({ views: -1 });
       } else if (category === 'Recent') {
@@ -131,19 +142,34 @@ router.get(
       } else {
         queryBuilder = queryBuilder.sort({ createdAt: -1 });
       }
+      queryBuilder = queryBuilder.skip(skip).limit(perPage);
 
-      // Pagination
-      const skip = (page - 1) * limit;
-      queryBuilder = queryBuilder.skip(skip).limit(parseInt(limit));
-
-      const series = await queryBuilder.exec();
+      let series = await queryBuilder.exec();
       const total = await Series.countDocuments(filter);
 
+      // ✅ filter videoLinks for episodes (if present) based on provider status
+      series = series.map(s => {
+        if (!s.episodes) return s; 
+        const updatedEpisodes = s.episodes.map(ep => {
+          const filteredLinks = (ep.videoLinks || []).filter(link => {
+            if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
+              return status.cloudflare;
+            }
+            if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
+              return status.wasabi;
+            }
+            return true;
+          });
+          return { ...ep.toObject(), videoLinks: filteredLinks };
+        }).filter(ep => ep.videoLinks.length > 0);
+        return { ...s.toObject(), episodes: updatedEpisodes };
+      });
+
       res.json({
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: perPage,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / perPage),
         series
       });
     } catch (err) {
@@ -153,7 +179,7 @@ router.get(
   }
 );
 
-// PUT update series by id
+// ✅ PUT update series
 router.put(
   '/:id',
   [
@@ -166,7 +192,7 @@ router.put(
     body('category').optional().isString().notEmpty(),
     body('region').optional().isIn(['Hollywood', 'Bollywood']),
     body('type').optional().isString(),
-    body('storageProvider').optional().isIn(['cloudflare', 'wasabi']) // ✅
+    body('storageProvider').optional().isIn(['cloudflare', 'wasabi'])
   ],
   validateRequest,
   async (req, res) => {
@@ -186,7 +212,7 @@ router.put(
   }
 );
 
-// DELETE series by id
+// ✅ DELETE series
 router.delete('/:id', [param('id').isMongoId()], validateRequest, async (req, res) => {
   try {
     const deleted = await Series.findByIdAndDelete(req.params.id);
@@ -200,7 +226,7 @@ router.delete('/:id', [param('id').isMongoId()], validateRequest, async (req, re
   }
 });
 
-// Increment views count
+// ✅ Increment views
 router.put('/:id/increment-views', [param('id').isMongoId()], validateRequest, async (req, res) => {
   try {
     const updatedSeries = await Series.findByIdAndUpdate(
@@ -218,7 +244,7 @@ router.put('/:id/increment-views', [param('id').isMongoId()], validateRequest, a
   }
 });
 
-// GET series titles (_id and title only) for dropdowns
+// ✅ GET titles
 router.get('/titles', async (req, res) => {
   try {
     const series = await Series.find({}, '_id title').exec();
@@ -229,7 +255,7 @@ router.get('/titles', async (req, res) => {
   }
 });
 
-// GET all series (id + title)
+// ✅ GET all
 router.get('/all', async (req, res) => {
   try {
     const series = await Series.find({}, '_id title');
@@ -240,7 +266,7 @@ router.get('/all', async (req, res) => {
   }
 });
 
-// ✅ NEW - Search series by title
+// ✅ Search by title
 router.get('/search', [
   query('title').isString().notEmpty()
 ], validateRequest, async (req, res) => {

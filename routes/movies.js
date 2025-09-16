@@ -151,19 +151,19 @@ router.get(
       let movies = await queryBuilder.exec();
       const total = await Movie.countDocuments(baseFilter);
 
-      // 🔹 filter videoLinks based on provider status (don’t drop movie)
-      movies = movies.map(m => {
-        const filteredLinks = m.videoLinks.filter(link => {
-          if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
-            return status.cloudflare;
-          }
-          if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
-            return status.wasabi;
-          }
-          return true;
-        });
-        return { ...m.toObject(), videoLinks: filteredLinks };
-      });
+    // 🔹 filter videoLinks based on provider status but keep all links
+movies = movies.map(m => {
+  const links = m.videoLinks.map(link => {
+    let isActive = true;
+    if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
+      isActive = status.cloudflare;
+    } else if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
+      isActive = status.wasabi;
+    }
+    return { ...link, active: isActive };
+  });
+  return { ...m.toObject(), videoLinks: links };
+});
 
       // ✅ Return all movies (even if videoLinks = [])
       res.json({

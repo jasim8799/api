@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult, query, param } = require('express-validator');
 const Series = require('../models/Series');
+const Episode = require('../models/Episode'); // ✅ added
 const verifyApiKey = require('../middleware/auth'); 
 const axios = require("axios"); 
 
@@ -99,7 +100,7 @@ router.post(
   }
 );
 
-// ✅ GET series with failover
+// ✅ GET series with episodes + failover
 router.get(
   '/',
   [
@@ -130,10 +131,8 @@ router.get(
 
       // ✅ check provider status
       const status = await checkStorageStatus();
-      if (!status.cloudflare && !status.wasabi) {
-        return res.status(503).json({ message: 'All storage providers are down' });
-      }
 
+      // ✅ fetch series
       let queryBuilder = Series.find(filter);
       if (category === 'Trending') {
         queryBuilder = queryBuilder.sort({ views: -1 });
@@ -144,33 +143,37 @@ router.get(
       }
       queryBuilder = queryBuilder.skip(skip).limit(perPage);
 
-      let series = await queryBuilder.exec();
+      let seriesList = await queryBuilder.exec();
       const total = await Series.countDocuments(filter);
 
-      // ✅ filter videoLinks for episodes (if present) based on provider status
-      series = series.map(s => {
-        if (!s.episodes) return s; 
-        const updatedEpisodes = s.episodes.map(ep => {
-          const filteredLinks = (ep.videoLinks || []).filter(link => {
-            if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
-              return status.cloudflare;
-            }
-            if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
-              return status.wasabi;
-            }
-            return true;
-          });
-          return { ...ep.toObject(), videoLinks: filteredLinks };
-        }).filter(ep => ep.videoLinks.length > 0);
-        return { ...s.toObject(), episodes: updatedEpisodes };
-      });
+      // ✅ attach episodes with storage failover
+      const enrichedSeries = await Promise.all(
+        seriesList.map(async s => {
+          const episodes = await Episode.find({ seriesId: s._id }).sort({ episodeNumber: 1 });
+
+          const updatedEpisodes = episodes.map(ep => {
+            const filteredSources = (ep.videoSources || []).filter(link => {
+              if (link.url.includes("b-cdn.net") || link.url.includes("cloudflare")) {
+                return status.cloudflare;
+              }
+              if (link.url.includes("wasabisys.com") || link.url.includes("wasabi")) {
+                return status.wasabi;
+              }
+              return true;
+            });
+            return { ...ep.toObject(), videoSources: filteredSources };
+          }).filter(ep => ep.videoSources.length > 0);
+
+          return { ...s.toObject(), episodes: updatedEpisodes };
+        })
+      );
 
       res.json({
         page: pageNum,
         limit: perPage,
         total,
         totalPages: Math.ceil(total / perPage),
-        series
+        series: enrichedSeries
       });
     } catch (err) {
       console.error(err);
